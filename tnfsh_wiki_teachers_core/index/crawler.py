@@ -143,6 +143,7 @@ class IndexCrawler(BaseCrawlerABC[SubjectTeacherMap]):
             pages_lists = await asyncio.gather(*tasks)
             pages = [page for sublist in pages_lists for page in sublist]
             return (subject, pages)    
+    
     async def fetch_raw(self, *args:Any, **kwargs:Any) -> List[Tuple[str, List[str]]]:
         """從維基系統獲取原始資料。
         
@@ -154,6 +155,7 @@ class IndexCrawler(BaseCrawlerABC[SubjectTeacherMap]):
             all_tasks = [self._process_subject(session, subject) for subject in subjects]
             results = await asyncio.gather(*all_tasks)
             return results    
+    
     def parse(self, raw: Any, *args:Any, **kwargs:Any) -> SubjectTeacherMap:
         """解析原始資料為結構化的科目教師映射。
         
@@ -175,12 +177,12 @@ class IndexCrawler(BaseCrawlerABC[SubjectTeacherMap]):
                 teacher: f"/{teacher.replace(' ', '_')}"
                 for teacher in teacher_list
             }
-            
-            # 建立科目資訊物件
-            result[subject] = SubjectInfo(
-                url=subject_url,
-                teachers=teachers_map
-            )
+            if teacher_list:    
+                # 建立科目資訊物件
+                result[subject] = SubjectInfo(
+                    url=subject_url,
+                    teachers=teachers_map
+                )
         return result
 
     @classmethod
