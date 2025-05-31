@@ -23,6 +23,8 @@ classifiers = [
 keywords = ["teacher", "education", "management"]
 dependencies = [
     "aiohttp>=3.10.11",
+    "dotenv>=0.9.9",
+    "pydantic>=2.10.6",
 ]
 
 [project.urls]
