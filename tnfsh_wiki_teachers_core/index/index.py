@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import Self, Any
+from unittest import result
 from tnfsh_wiki_teachers_core.abc.domain_abc import BaseDomainABC
 from pydantic import BaseModel
-from tnfsh_wiki_teachers_core.index.crawler import SubjectTeacherMap
-from tnfsh_wiki_teachers_core.index.cache import ReverseIndexMap
+from tnfsh_wiki_teachers_core.index.crawler import SubjectTeacherMap, SubjectInfo
+from tnfsh_wiki_teachers_core.index.cache import ReverseIndexMap, TeacherInfo
 
 
 class Index(BaseDomainABC, BaseModel):
@@ -11,15 +12,34 @@ class Index(BaseDomainABC, BaseModel):
     index: SubjectTeacherMap| None = None
     reverse_index: ReverseIndexMap| None = None
 
+
+
     @classmethod
     async def fetch(cls, refresh:bool = False, max_concurrency:int = 5, *args: Any, **kwargs:Any) -> Self:
         from tnfsh_wiki_teachers_core.index.cache import IndexCache, ReverseIndexCache
-        index = await IndexCache.fetch(refresh=refresh, max_concurrency=max_concurrency)
-        reverse_index = await ReverseIndexCache.fetch(refresh=refresh, max_concurrency=max_concurrency)
+        cache = IndexCache(max_concurrency=max_concurrency)
+        reverse_cache = ReverseIndexCache(max_concurrency=max_concurrency)
+        index = await cache.fetch(refresh=refresh)
+        reverse_index = await reverse_cache.fetch(refresh=refresh)
         instance = cls(index=index, reverse_index=reverse_index)
-        
         return instance
     
+    def __getitem__(self, key: str) -> TeacherInfo | SubjectInfo | str:
+        """允許使用索引方式存取教師資訊或科目"""
+        if self.reverse_index and (result := self.reverse_index.get(key)):
+            return result
+
+        if self.index and (result := self.index.get(key)):
+            return result
+
+        if self.index:
+            # 在index中查找每個老師的url並進行比對
+            for _subject, subject_info in self.index.items():
+                if key in subject_info.teachers:
+                    for teacher, url in subject_info.teachers.items():
+                        if key == teacher or key == url:
+                            return subject_info.teachers[teacher]
+        raise KeyError(f"Item '{key}' not found in index or reverse index.")
 
 if __name__ == "__main__":
     import asyncio
