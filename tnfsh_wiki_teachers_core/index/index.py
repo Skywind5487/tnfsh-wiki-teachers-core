@@ -12,8 +12,6 @@ class Index(BaseDomainABC, BaseModel):
     index: SubjectTeacherMap| None = None
     reverse_index: ReverseIndexMap| None = None
 
-
-
     @classmethod
     async def fetch(cls, refresh:bool = False, max_concurrency:int = 5, *args: Any, **kwargs:Any) -> Self:
         from tnfsh_wiki_teachers_core.index.cache import IndexCache, ReverseIndexCache
