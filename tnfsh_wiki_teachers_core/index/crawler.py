@@ -46,7 +46,7 @@ class SubjectTeacherMap(DictRootModel[str, SubjectInfo]):
     """
     pass
 
-class IndexCrawler(BaseCrawlerABC[SubjectTeacherMap]):
+class IndexCrawler(BaseCrawlerABC):
     """台南一中教師維基索引爬蟲。
     
     此類別負責從台南一中維基系統獲取教師資訊，包括：
@@ -67,7 +67,8 @@ class IndexCrawler(BaseCrawlerABC[SubjectTeacherMap]):
         Args:
             max_concurrency (int): 最大同時請求數，預設為 5
         """
-        self.semaphore = asyncio.Semaphore(max_concurrency)    
+        self.max_concurrency = max_concurrency
+        self.semaphore = asyncio.Semaphore(self.max_concurrency)    
     def _get_headers(self) -> Dict[str, str]:
         """產生 HTTP 請求標頭。
         
@@ -172,9 +173,9 @@ class IndexCrawler(BaseCrawlerABC[SubjectTeacherMap]):
         result: SubjectTeacherMap = SubjectTeacherMap(root={})
         for subject, teacher_list in raw:
             # 初始化科目資訊
-            subject_url = f"/{subject.replace(' ', '_')}"
+            subject_url = f"{subject.replace(' ', '_')}"
             teachers_map = {
-                teacher: f"/{teacher.replace(' ', '_')}"
+                teacher: f"{teacher.replace(' ', '_')}"
                 for teacher in teacher_list
             }
             if teacher_list:    
@@ -185,22 +186,24 @@ class IndexCrawler(BaseCrawlerABC[SubjectTeacherMap]):
                 )
         return result
 
-    @classmethod
-    async def fetch(cls, max_concurrency:int = 5, *args:Any,  **kwargs:Any) -> SubjectTeacherMap:
-        """類別方法：抓取並解析教師資料。
-        
+
+    async def fetch(self, *args:Any,  **kwargs:Any) -> SubjectTeacherMap:
+        """實例方法：抓取並解析教師資料。
+
         Args:
             max_concurrency (int): 最大同時請求數
             
         Returns:
             SubjectTeacherMap: 結構化的科目教師映射
         """
-        return await super().fetch(max_concurrency=max_concurrency)
+        raw_data = await self.fetch_raw(*args, **kwargs)
+        return self.parse(raw_data, *args, **kwargs)
 
 
 if __name__ == "__main__":
     async def test():
-        result = await IndexCrawler.fetch()
+        crawler = IndexCrawler()
+        result = await crawler.fetch()
         return result
     import asyncio
     result = asyncio.run(test())
