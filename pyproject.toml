@@ -1,6 +1,6 @@
 [project]
 name = "tnfsh-wiki-teachers-core"
-version = "0.0.1"
+version = "1.0.0"
 description = "竹園wiki教師資料核心功能庫，竹園wiki為台南一中wiki"
 readme = "README.md"
 authors = [
