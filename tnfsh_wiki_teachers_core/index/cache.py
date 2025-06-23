@@ -51,7 +51,7 @@ class ReverseIndexMap(DictRootModel[str, TeacherInfo]):
 index_cache: SubjectTeacherMap| None = None  # 正向索引快取
 reverse_index_cache: ReverseIndexMap| None = None  # 反向索引快取
 
-class IndexCache(BaseCacheABC[SubjectTeacherMap]):
+class IndexCache(BaseCacheABC):
     """正向索引快取管理器。
 
     此類別實現了三層快取機制來管理台南一中教師維基的正向索引資料
@@ -82,10 +82,11 @@ class IndexCache(BaseCacheABC[SubjectTeacherMap]):
         self._cache_dir = Path(__file__).resolve().parent / "cache"
         self._cache_file = self._cache_dir / "prebuilt_index.json"
         self._cache_dir.mkdir(exist_ok=True)
+        self._crawler = IndexCrawler(max_concurrency=self.max_concurrency)
     
-    @classmethod
-    async def fetch(cls, refresh: bool = False, max_concurrency: int = 5) -> SubjectTeacherMap:
-        """類別方法：取得索引資料。
+    
+    async def fetch(self, refresh: bool = False) -> SubjectTeacherMap:
+        """取得索引資料。
 
         這是主要的資料存取入口點。它會按照優先順序嘗試從不同的快取層級獲取資料：
         1. 記憶體快取（如果 refresh=False）
@@ -99,7 +100,7 @@ class IndexCache(BaseCacheABC[SubjectTeacherMap]):
         Returns:
             SubjectTeacherMap: 科目到教師的映射資料
         """
-        return await super().fetch(refresh=refresh, max_concurrency=max_concurrency)
+        return await super().fetch(refresh=refresh)
 
     async def fetch_from_memory(self, *args: Any, **kwargs: Any) -> SubjectTeacherMap | None:
         """從記憶體快取中取得資料。
@@ -150,7 +151,7 @@ class IndexCache(BaseCacheABC[SubjectTeacherMap]):
         import json
         with open(self._cache_file, "w", encoding="utf-8") as f:
             json.dump(data.model_dump(), f, ensure_ascii=False, indent=4)
-    async def fetch_from_source(self, max_concurrency:int = 5, *args: Any, **kwargs: Any) -> SubjectTeacherMap:
+    async def fetch_from_source(self, *args: Any, **kwargs: Any) -> SubjectTeacherMap:
         """從維基網站重新抓取資料。
         
         當所有快取層級都失效時，此方法會被調用來從原始來源重新抓取資料。
@@ -162,13 +163,12 @@ class IndexCache(BaseCacheABC[SubjectTeacherMap]):
         Returns:
             SubjectTeacherMap: 新抓取的科目教師映射資料
         """
-        index_crawler = IndexCrawler()
-        result: SubjectTeacherMap = await index_crawler.fetch(*args, max_concurrency=max_concurrency, **kwargs)
+        result: SubjectTeacherMap = await self._crawler.fetch(*args, **kwargs)
         return result
 
     
 
-class ReverseIndexCache(BaseCacheABC[ReverseIndexMap]):
+class ReverseIndexCache(BaseCacheABC):
     """反向索引的快取管理器。
 
     此類別實現了三層快取機制來管理教師到科目的反向索引映射。
@@ -196,9 +196,10 @@ class ReverseIndexCache(BaseCacheABC[ReverseIndexMap]):
         self._cache_dir = Path(__file__).resolve().parent / "cache"
         self._cache_file = self._cache_dir / "prebuilt_reverse_index.json"
         self._cache_dir.mkdir(exist_ok=True)
-    @classmethod
-    async def fetch(cls, refresh: bool = False, max_concurrency: int = 5) -> ReverseIndexMap:
-        """類別方法：取得反向索引資料。
+        self._crawler = IndexCrawler(max_concurrency=self.max_concurrency)
+
+    async def fetch(self, refresh: bool = False) -> ReverseIndexMap:
+        """取得反向索引資料。
 
         這是獲取反向索引的主要入口點，會依序嘗試：
         1. 記憶體快取（若 refresh=False）
@@ -212,7 +213,7 @@ class ReverseIndexCache(BaseCacheABC[ReverseIndexMap]):
         Returns:
             ReverseIndexMap: 教師到科目的反向映射
         """
-        return await super().fetch(refresh=refresh, max_concurrency=max_concurrency)
+        return await super().fetch(refresh=refresh)
 
     async def fetch_from_memory(self, *args: Any, **kwargs: Any) -> ReverseIndexMap | None:
         """從記憶體快取中取得反向索引。
@@ -264,7 +265,7 @@ class ReverseIndexCache(BaseCacheABC[ReverseIndexMap]):
         import json
         with open(self._cache_file, "w", encoding="utf-8") as f:
             json.dump(data.model_dump(), f, ensure_ascii=False, indent=4)
-    async def fetch_from_source(self, max_concurrency:int = 5, *args: Any, **kwargs: Any) -> ReverseIndexMap:
+    async def fetch_from_source(self, *args: Any, **kwargs: Any) -> ReverseIndexMap:
         """從正向索引重新建構反向索引。
         
         當所有快取層級都失效時，此方法會被調用。它會：
@@ -279,20 +280,17 @@ class ReverseIndexCache(BaseCacheABC[ReverseIndexMap]):
         Returns:
             ReverseIndexMap: 新建構的反向索引映射
         """
-        index_crawler = IndexCrawler()
-        forward_index: SubjectTeacherMap = await index_crawler.fetch(*args, max_concurrency=max_concurrency, **kwargs)
+        forward_index: SubjectTeacherMap = await self._crawler.fetch(*args, **kwargs)
         reverse_index_map: ReverseIndexMap = ReverseIndexMap(root={})
-
-        # 將正向索引轉換為反向索引
         for category, subject_info in forward_index.items():
             for name, url in subject_info.teachers.items():
                 reverse_index_map[name] = TeacherInfo(category=category, url=url)
-
         return reverse_index_map
 
 
 if __name__ == "__main__" :
     import asyncio
     import json
-    result = asyncio.run(IndexCache.fetch(refresh=True, max_concurrency=5))
+    cache = ReverseIndexCache()
+    result = asyncio.run(cache.fetch(refresh=True))
     print(json.dumps(result.model_dump(), indent=4, ensure_ascii=False))
