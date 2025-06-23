@@ -1,6 +1,5 @@
 from __future__ import annotations
-from typing import Self, Any
-from unittest import result
+from typing import Self, Any, List
 from tnfsh_wiki_teachers_core.abc.domain_abc import BaseDomainABC
 from pydantic import BaseModel
 from tnfsh_wiki_teachers_core.index.crawler import SubjectTeacherMap, SubjectInfo
@@ -8,9 +7,9 @@ from tnfsh_wiki_teachers_core.index.cache import ReverseIndexMap, TeacherInfo
 
 
 class Index(BaseDomainABC, BaseModel):
-    
-    index: SubjectTeacherMap| None = None
-    reverse_index: ReverseIndexMap| None = None
+
+    index: SubjectTeacherMap | None = None
+    reverse_index: ReverseIndexMap | None = None
 
     @classmethod
     async def fetch(cls, refresh:bool = False, max_concurrency:int = 5, *args: Any, **kwargs:Any) -> Self:
@@ -38,6 +37,23 @@ class Index(BaseDomainABC, BaseModel):
                         if key == teacher or key == url:
                             return subject_info.teachers[teacher]
         raise KeyError(f"Item '{key}' not found in index or reverse index.")
+    
+    def get_all_categories(self) -> List[str]:
+        """
+        獲取所有教師的分類科目列表
+        """
+        if self.index is None:
+            raise RuntimeError("尚未載入詳細索引資料")
+        return list(self.index.keys())
+    
+    def get_all_teachers(self) -> List[str]:
+        """
+        獲取所有教師名稱列表
+        """
+        if self.reverse_index is None:
+            raise RuntimeError("尚未載入詳細索引資料")
+        return list(self.reverse_index.keys())
+
 
 if __name__ == "__main__":
     import asyncio
